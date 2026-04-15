@@ -129,6 +129,63 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //   - object_write    : save that binary buffer to the store as OBJ_TREE
 //
 // Returns 0 on success, -1 on error.
+static int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID *id_out) {
+    Tree *tree = malloc(sizeof(Tree));
+    if (!tree) return -1;
+    tree->count = 0;
+
+    for (int i = 0; i < count; ) {
+        // Skip parts of path already handled by deeper recursion
+        const char *rel_path = entries[i].path;
+        for (int d = 0; d < depth; d++) {
+            rel_path = strchr(rel_path, '/');
+            if (rel_path) rel_path++;
+        }
+
+        const char *slash = strchr(rel_path, '/');
+        if (slash) {
+            // It's a directory
+            char dir_name[256];
+            size_t len = slash - rel_path;
+            strncpy(dir_name, rel_path, len);
+            dir_name[len] = '\0';
+
+            // Find all entries in this same directory
+            int sub_count = 0;
+            while (i + sub_count < count) {
+                const char *p = entries[i + sub_count].path;
+                for (int d = 0; d < depth; d++) { p = strchr(p, '/') + 1; }
+                if (strncmp(p, dir_name, len) == 0 && p[len] == '/') sub_count++;
+                else break;
+            }
+
+            ObjectID sub_id;
+            if (write_tree_level(&entries[i], sub_count, depth + 1, &sub_id) != 0) {
+                free(tree); return -1;
+            }
+
+            TreeEntry *te = &tree->entries[tree->count++];
+            te->mode = MODE_DIR;
+            strncpy(te->name, dir_name, sizeof(te->name) - 1);
+            te->hash = sub_id;
+
+            i += sub_count;
+        } else {
+            // It's a file
+            TreeEntry *te = &tree->entries[tree->count++];
+            te->mode = entries[i].mode;
+            strncpy(te->name, rel_path, sizeof(te->name) - 1);
+            te->hash = entries[i].id;
+            i++;
+        }
+    }
+
+    // TODO: Finalize write in next commit
+    free(tree);
+    (void)id_out;
+    return 0;
+}
+
 int tree_from_index(ObjectID *id_out) {
     Index *index = malloc(sizeof(Index));
     if (!index) return -1;
@@ -137,8 +194,7 @@ int tree_from_index(ObjectID *id_out) {
         return -1;
     }
 
-    // TODO: Build hierarchy in next commit
+    int ret = write_tree_level(index->entries, index->count, 0, id_out);
     free(index);
-    (void)id_out;
-    return 0;
+    return ret;
 }
