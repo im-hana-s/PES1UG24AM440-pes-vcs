@@ -95,9 +95,33 @@ int object_exists(const ObjectID *id) {
 //
 // Returns 0 on success, -1 on error.
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out) {
-    // TODO: Implement
-    (void)type; (void)data; (void)len; (void)id_out;
-    return -1;
+    const char *type_str = (type == OBJ_BLOB) ? "blob" :
+                           (type == OBJ_TREE) ? "tree" : "commit";
+
+    // Build header string: "<type> <size>\0"
+    char header[64];
+    snprintf(header, sizeof(header), "%s %zu", type_str, len);
+    size_t header_len = strlen(header) + 1; // include '\0'
+
+    // Concatenate header + data
+    size_t total_len = header_len + len;
+    unsigned char *full = malloc(total_len);
+    if (!full) return -1;
+    memcpy(full, header, header_len);
+    memcpy(full + header_len, data, len);
+
+    // Compute hash
+    compute_hash(full, total_len, id_out);
+
+    // Deduplication: if object already exists, skip writing
+    if (object_exists(id_out)) {
+        free(full);
+        return 0;
+    }
+    
+    // TODO: Finish implementation in next commit
+    free(full);
+    return 0;
 }
 
 // Read an object from the store.
