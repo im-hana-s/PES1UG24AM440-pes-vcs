@@ -166,15 +166,32 @@ int index_load(Index *index) {
 //   - rename                           : atomically moving the temp file over the old index
 //
 // Returns 0 on success, -1 on error.
+static int compare_entries(const void *a, const void *b) {
+    return strcmp(((IndexEntry*)a)->path, ((IndexEntry*)b)->path);
+}
+
 int index_save(const Index *index) {
     char tmp_path[512];
     snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", INDEX_PATH);
     FILE *f = fopen(tmp_path, "w");
     if (!f) return -1;
     
-    // TODO: Sort and write entries in next commit
+    // Sort entries by path
+    qsort((void*)index->entries, index->count, sizeof(IndexEntry), compare_entries);
+
+    for (int i = 0; i < index->count; i++) {
+        char hex[HASH_HEX_SIZE + 1];
+        hash_to_hex(&index->entries[i].id, hex);
+        fprintf(f, "%o %s %" PRIu64 " %" PRIu32 " %s\n",
+                index->entries[i].mode, hex, index->entries[i].mtime_sec,
+                index->entries[i].size, index->entries[i].path);
+    }
+    
+    fflush(f);
+    fsync(fileno(f));
     fclose(f);
-    return 0;
+
+    return rename(tmp_path, INDEX_PATH);
 }
 
 // Stage a file for the next commit.
