@@ -240,6 +240,20 @@ int index_add(Index *index, const char *path) {
         return index_save(index);
     }
     
-    // TODO: Handle directories in next commit
+    if (S_ISDIR(st.st_mode)) {
+        DIR *dir = opendir(path);
+        if (!dir) return -1;
+        struct dirent *ent;
+        while ((ent = readdir(dir)) != NULL) {
+            if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+            if (strcmp(ent->d_name, ".pes") == 0) continue;
+            
+            char subpath[1024];
+            snprintf(subpath, sizeof(subpath), "%s/%s", path, ent->d_name);
+            index_add(index, subpath);
+        }
+        closedir(dir);
+    }
+    
     return 0;
 }
