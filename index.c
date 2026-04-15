@@ -25,6 +25,9 @@
 #include <dirent.h>
 #include <inttypes.h>
 
+// Forward declarations (implemented in object.c)
+int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
+
 // ─── PROVIDED ────────────────────────────────────────────────────────────────
 
 // Find an index entry by path (linear scan).
@@ -137,7 +140,7 @@ int index_status(const Index *index) {
 // Returns 0 on success, -1 on error.
 int index_load(Index *index) {
     memset(index, 0, sizeof(Index));
-    FILE *f = fopen(INDEX_PATH, "r");
+    FILE *f = fopen(INDEX_FILE, "r");
     if (!f) return 0; // Not an error, just an empty index
     
     char line[1024];
@@ -147,7 +150,7 @@ int index_load(Index *index) {
         
         if (sscanf(line, "%o %64s %" PRIu64 " %" PRIu32 " %[^\n]",
                    &e->mode, hex, &e->mtime_sec, &e->size, e->path) == 5) {
-            hex_to_hash(hex, &e->id);
+            hex_to_hash(hex, &e->hash);
             index->count++;
         }
     }
@@ -172,7 +175,7 @@ static int compare_entries(const void *a, const void *b) {
 
 int index_save(const Index *index) {
     char tmp_path[512];
-    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", INDEX_PATH);
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", INDEX_FILE);
     FILE *f = fopen(tmp_path, "w");
     if (!f) return -1;
     
@@ -186,7 +189,7 @@ int index_save(const Index *index) {
 
     for (int i = 0; i < index->count; i++) {
         char hex[HASH_HEX_SIZE + 1];
-        hash_to_hex(&sorted[i].id, hex);
+        hash_to_hex(&sorted[i].hash, hex);
         fprintf(f, "%o %s %" PRIu64 " %" PRIu32 " %s\n",
                 sorted[i].mode, hex, sorted[i].mtime_sec,
                 sorted[i].size, sorted[i].path);
@@ -197,7 +200,7 @@ int index_save(const Index *index) {
     fclose(f);
     free(sorted);
 
-    return rename(tmp_path, INDEX_PATH);
+    return rename(tmp_path, INDEX_FILE);
 }
 
 // Stage a file for the next commit.
@@ -239,7 +242,7 @@ int index_add(Index *index, const char *path) {
             strncpy(e->path, path, sizeof(e->path) - 1);
         }
         e->mode = st.st_mode;
-        e->id = id;
+        e->hash = id;
         e->mtime_sec = (uint64_t)st.st_mtime;
         e->size = (uint32_t)st.st_size;
 

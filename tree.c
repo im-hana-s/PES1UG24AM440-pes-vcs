@@ -10,11 +10,15 @@
 //   "100644 hello.txt\0" followed by 32 raw bytes of SHA-256
 
 #include "tree.h"
+#include "index.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+
+// Forward declarations (implemented in object.c)
+int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
 
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
@@ -179,7 +183,7 @@ static int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID 
             TreeEntry *te = &tree->entries[tree->count++];
             te->mode = entries[i].mode;
             strncpy(te->name, rel_path, sizeof(te->name) - 1);
-            te->hash = entries[i].id;
+            te->hash = entries[i].hash;
             i++;
         }
     }
