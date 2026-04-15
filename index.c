@@ -176,20 +176,26 @@ int index_save(const Index *index) {
     FILE *f = fopen(tmp_path, "w");
     if (!f) return -1;
     
+    // Heap-allocate copy of entries for sorting to avoid stack overflow
+    IndexEntry *sorted = malloc(index->count * sizeof(IndexEntry));
+    if (!sorted) { fclose(f); return -1; }
+    memcpy(sorted, index->entries, index->count * sizeof(IndexEntry));
+
     // Sort entries by path
-    qsort((void*)index->entries, index->count, sizeof(IndexEntry), compare_entries);
+    qsort((void*)sorted, index->count, sizeof(IndexEntry), compare_entries);
 
     for (int i = 0; i < index->count; i++) {
         char hex[HASH_HEX_SIZE + 1];
-        hash_to_hex(&index->entries[i].id, hex);
+        hash_to_hex(&sorted[i].id, hex);
         fprintf(f, "%o %s %" PRIu64 " %" PRIu32 " %s\n",
-                index->entries[i].mode, hex, index->entries[i].mtime_sec,
-                index->entries[i].size, index->entries[i].path);
+                sorted[i].mode, hex, sorted[i].mtime_sec,
+                sorted[i].size, sorted[i].path);
     }
     
     fflush(f);
     fsync(fileno(f));
     fclose(f);
+    free(sorted);
 
     return rename(tmp_path, INDEX_PATH);
 }
