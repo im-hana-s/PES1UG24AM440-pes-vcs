@@ -221,8 +221,36 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
         return -1; // hash mismatch
     }
     
-    // TODO: Finish parsing in next commit
+    // Parse header: "<type> <size>\0"
+    char *nul = memchr(buf, '\0', fsize);
+    if (!nul) { free(buf); return -1; }
+    size_t header_len = (nul - (char*)buf) + 1;
+
+    char type_str[16];
+    size_t size_val;
+    if (sscanf((char*)buf, "%15s %zu", type_str, &size_val) != 2) {
+        free(buf); return -1;
+    }
+
+    ObjectType type;
+    if (strcmp(type_str, "blob") == 0) type = OBJ_BLOB;
+    else if (strcmp(type_str, "tree") == 0) type = OBJ_TREE;
+    else if (strcmp(type_str, "commit") == 0) type = OBJ_COMMIT;
+    else { free(buf); return -1; }
+
+    // Extract data after header
+    size_t data_len = fsize - header_len;
+    if (data_len != size_val) {
+        free(buf); return -1; // size mismatch
+    }
+
+    void *data = malloc(data_len);
+    if (!data) { free(buf); return -1; }
+    memcpy(data, buf + header_len, data_len);
     free(buf);
-    (void)type_out; (void)data_out; (void)len_out;
+
+    *type_out = type;
+    *data_out = data;
+    *len_out = data_len;
     return 0;
 }
