@@ -93,12 +93,15 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
     if (!buffer) return -1;
 
     // Create a mutable copy to sort entries (Git requirement)
-    Tree sorted_tree = *tree;
-    qsort(sorted_tree.entries, sorted_tree.count, sizeof(TreeEntry), compare_tree_entries);
+    // Heap-allocate to avoid stack overflow during recursion
+    Tree *sorted_tree = malloc(sizeof(Tree));
+    if (!sorted_tree) { free(buffer); return -1; }
+    *sorted_tree = *tree;
+    qsort(sorted_tree->entries, sorted_tree->count, sizeof(TreeEntry), compare_tree_entries);
 
     size_t offset = 0;
-    for (int i = 0; i < sorted_tree.count; i++) {
-        const TreeEntry *entry = &sorted_tree.entries[i];
+    for (int i = 0; i < sorted_tree->count; i++) {
+        const TreeEntry *entry = &sorted_tree->entries[i];
         
         // Write mode and name (%o writes octal correctly for Git standards)
         int written = sprintf((char *)buffer + offset, "%o %s", entry->mode, entry->name);
@@ -109,6 +112,7 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
         offset += HASH_SIZE;
     }
 
+    free(sorted_tree);
     *data_out = buffer;
     *len_out = offset;
     return 0;
