@@ -142,8 +142,30 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     int fd = mkstemp(tmp_path);
     if (fd < 0) { free(full); return -1; }
     
-    // TODO: Finish writing in next commit
+    if (write(fd, full, total_len) != (ssize_t)total_len) {
+        close(fd);
+        unlink(tmp_path);
+        free(full);
+        return -1;
+    }
+
+    fsync(fd);
     close(fd);
+
+    // Atomically rename into place
+    if (rename(tmp_path, path) < 0) {
+        unlink(tmp_path);
+        free(full);
+        return -1;
+    }
+
+    // Sync directory for durability
+    int dfd = open(dir, O_DIRECTORY);
+    if (dfd >= 0) {
+        fsync(dfd);
+        close(dfd);
+    }
+
     free(full);
     return 0;
 }
