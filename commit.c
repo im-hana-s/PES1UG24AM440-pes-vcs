@@ -201,7 +201,17 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     memset(&commit, 0, sizeof(Commit));
     commit.tree = tree_id;
 
-    // TODO: Read parent and author in next commit
-    (void)message; (void)commit_id_out;
+    if (head_read(&commit.parent) == 0) {
+        commit.has_parent = 1;
+    } else {
+        commit.has_parent = 0;
+    }
+
+    strncpy(commit.author, pes_author(), sizeof(commit.author) - 1);
+    commit.timestamp = (uint64_t)time(NULL);
+    strncpy(commit.message, message, sizeof(commit.message) - 1);
+
+    // TODO: Serialize and update HEAD in next commit
+    (void)commit_id_out;
     return 0;
 }
