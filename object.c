@@ -119,7 +119,31 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
         return 0;
     }
     
-    // TODO: Finish implementation in next commit
+    // Build object path
+    char path[512];
+    object_path(id_out, path, sizeof(path));
+
+    // Extract directory portion
+    char dir[512];
+    strncpy(dir, path, sizeof(dir));
+    dir[sizeof(dir)-1] = '\0';
+    char *slash = strrchr(dir, '/');
+    if (slash) *slash = '\0';
+
+    // Ensure directory exists
+    if (mkdir(dir, 0755) < 0 && errno != EEXIST) {
+        free(full);
+        return -1;
+    }
+
+    // Write to temporary file
+    char tmp_path[1024];
+    snprintf(tmp_path, sizeof(tmp_path), "%s/.tmpXXXXXX", dir);
+    int fd = mkstemp(tmp_path);
+    if (fd < 0) { free(full); return -1; }
+    
+    // TODO: Finish writing in next commit
+    close(fd);
     free(full);
     return 0;
 }
