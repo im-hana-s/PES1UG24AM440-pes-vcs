@@ -23,6 +23,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <inttypes.h>
 
 // ─── PROVIDED ────────────────────────────────────────────────────────────────
 
@@ -139,7 +140,18 @@ int index_load(Index *index) {
     FILE *f = fopen(INDEX_PATH, "r");
     if (!f) return 0; // Not an error, just an empty index
     
-    // TODO: Parse lines in next commit
+    char line[1024];
+    while (fgets(line, sizeof(line), f) && index->count < MAX_INDEX_ENTRIES) {
+        IndexEntry *e = &index->entries[index->count];
+        char hex[HASH_HEX_SIZE + 1];
+        
+        if (sscanf(line, "%o %64s %" PRIu64 " %" PRIu32 " %[^\n]",
+                   &e->mode, hex, &e->mtime_sec, &e->size, e->path) == 5) {
+            hex_to_hash(hex, &e->id);
+            index->count++;
+        }
+    }
+    
     fclose(f);
     return 0;
 }
