@@ -180,9 +180,19 @@ static int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID 
         }
     }
 
-    // TODO: Finalize write in next commit
+    // Serialize and write this tree object
+    void *data;
+    size_t len;
+    if (tree_serialize(tree, &data, &len) != 0) {
+        free(tree); return -1;
+    }
+
+    if (object_write(OBJ_TREE, data, len, id_out) != 0) {
+        free(data); free(tree); return -1;
+    }
+
+    free(data);
     free(tree);
-    (void)id_out;
     return 0;
 }
 
